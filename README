@@ -59,6 +59,3 @@ Textures for places, transitions, and other elements are loaded and managed usin
 
 Shadow Mapping
 Shadow mapping is implemented to provide realistic lighting effects. The initialization and drawing of shadow maps are handled by initShadowMap and drawShadowMap.
-
-License
-This project is licensed under the MIT License. See the LICENSE file for details.
