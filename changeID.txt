@@ -1,0 +1,693 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <rapidxml.hpp>
+#include <rapidxml_utils.hpp>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include "constants.h"
+#include "lodepng.h"
+#include "shaderprogram.h"
+#include "myCube.h"
+#include <glm/gtc/type_ptr.hpp>
+#include "myPyramid.h"
+
+
+
+using namespace rapidxml;
+
+#include <map>
+
+std::map<std::string, GLuint> placeTextures;
+std::map<std::string, GLuint> transitionTextures;
+
+
+
+float speed_x = 0;
+float speed_y = 0;
+float aspectRatio = 1;
+
+float camfr = 0;
+float camlr = 0;
+float s = 0;
+int animate = 0;
+float biggify = 1;
+float expand = 1;
+
+
+
+
+
+struct Transition {
+    float x, y;
+    std::string type;
+    std::string ID;
+};
+
+
+struct Edge {
+    float startX, startY;
+    float endX, endY;
+    int source, target;
+    std::string multiplicity;
+};
+
+
+struct Place {
+    float x, y;
+    std::string marking;
+    std::string ID;
+};
+
+//Odkomentuj, ¿eby rysowaæ kostkê
+float* cVertices = myCubeVertices;
+float* cNormals = myCubeNormals;
+float* cTexCoords = myCubeTexCoords;
+float* cColors = myCubeColors;
+int cVertexCount = myCubeVertexCount;
+
+
+
+float* pVertices = myPyramidVertices;
+float* pNormals = myPyramidNormals;
+float* pTexCoords = myPyramidTexCoords;
+float* pColors = myPyramidColors;
+int pVertexCount = myPyramidVertexCount;
+
+#include <set> // Dodaj nowy include
+
+std::set<int> usedIDs; // Zbiór przechowuj¹cy u¿yte ID
+
+
+int generateUniqueID() {
+    for (int i = 1; i <= 199; ++i) {
+        if (usedIDs.find(i) == usedIDs.end()) {
+            usedIDs.insert(i);
+            return i;
+        }
+    }
+    return -1; // Brak dostêpnych unikalnych ID
+}
+
+void addUniqueID(int id) {
+    usedIDs.insert(id);
+}
+
+
+
+
+//Procedura obs³ugi b³êdów
+void error_callback(int error, const char* description) {
+    fputs(description, stderr);
+}
+
+void drawCube(float x, float y) {
+    glm::mat4 M = glm::mat4(1.0f);
+    M = glm::translate(M, glm::vec3(x, y, 0.0f)); // Wylicz macierz translacji dla szeœcianu
+    M = glm::scale(M, glm::vec3(0.5, 0.5, 0.5) * biggify);
+    glUniformMatrix4fv(spTextured->u("M"), 1, false, glm::value_ptr(M));
+
+    glEnableVertexAttribArray(spTextured->a("vertex"));  //W³¹cz przesy³anie danych do atrybutu vertex
+    glVertexAttribPointer(spTextured->a("vertex"), 4, GL_FLOAT, false, 0, cVertices); //Wska¿ tablicê z danymi dla atrybutu vertex
+
+
+
+    //glEnableVertexAttribArray(spTextured->a("color"));
+    //glVertexAttribPointer(spTextured->a("color"), 4, GL_FLOAT, false, 0, myCubeColors);
+
+    glUniform4f(spTextured->u("color"), 1, 0, 1, 1);
+
+    glDrawArrays(GL_TRIANGLES, 0, cVertexCount); //Narysuj obiekt
+
+    //glDisableVertexAttribArray(spTextured->a("vertex"));  //Wy³¹cz przesy³anie danych do atrybutu vertex
+    //glDisableVertexAttribArray(spTextured->a("color"));
+}
+
+void moveCubeAlongEdge(const Edge& edge) {
+    static float animationProgress = 0.0f; // Progress of animation (0.0 - 1.0)
+    const float animationspeed = 0.001f; // spTexturedeed of animation
+    static glm::vec2 start_pos = glm::vec2(edge.startX / 20.0f + expand, edge.startY / 20.0f + expand);
+    static glm::vec2 end_pos = glm::vec2(edge.endX / 20.0f + expand, edge.endY / 20.0f + expand);
+
+    
+        // Interpolate position between start and end
+        glm::vec2 interpolated_position = start_pos + animationProgress * (end_pos - start_pos);
+
+        // Update cube position
+        float cubeX = interpolated_position.x;
+        float cubeY = interpolated_position.y;
+
+        // Draw cube at the new position
+        drawCube(cubeX, cubeY); // Assuming there's a function to draw cube at a given position
+
+        // Update animation progress
+        animationProgress += animationspeed;
+        if (animationProgress >= 1.0f) {
+            animationProgress = 0.0f;
+            start_pos = end_pos; // Update start position to end position
+            end_pos = glm::vec2(edge.endX / 20.0f + expand, edge.endY / 20.0f + expand); // Update end position to new destination
+        }
+    
+}
+
+
+
+void decreaseMarking(const std::vector<Place>& places, int targetID) {
+    for (auto& place : places) {
+        if (std::stoi(place.ID) == targetID) {
+            int newMarking = std::stoi(place.marking) - 1;
+            //place.marking = std::to_string(newMarking);
+            break;
+        }
+    }
+}
+
+
+
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_LEFT) speed_x = -PI / 2;
+        if (key == GLFW_KEY_RIGHT) speed_x = PI / 2;
+        if (key == GLFW_KEY_UP) speed_y = PI / 2;
+        if (key == GLFW_KEY_DOWN) speed_y = -PI / 2;
+    }
+    if (action == GLFW_RELEASE) {
+        if (key == GLFW_KEY_LEFT) speed_x = 0;
+        if (key == GLFW_KEY_RIGHT) speed_x = 0;
+        if (key == GLFW_KEY_UP) speed_y = 0;
+        if (key == GLFW_KEY_DOWN) speed_y = 0;
+    }
+
+    if (action == GLFW_REPEAT || action == GLFW_PRESS) {
+        if (key == GLFW_KEY_A) {
+            camlr += 0.5f; // Increase camlr when 'A' key is held down
+        }
+        if (key == GLFW_KEY_D) {
+            camlr -= 0.5f; // Decrease camlr when 'D' key is held down
+        }
+        if (key == GLFW_KEY_W) {
+            camfr += 0.5f; // Increase camfr when 'W' key is held down
+        }
+        if (key == GLFW_KEY_S) {
+            camfr -= 0.5f; // Decrease camfr when 'S' key is held down
+        }
+    }
+
+    if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_0) animate = 0;
+        if (key == GLFW_KEY_1) animate = 1;
+    }
+
+    if (action == GLFW_REPEAT || action == GLFW_PRESS) {
+        if (key == GLFW_KEY_EQUAL) biggify += 0.1f;
+        if (key == GLFW_KEY_MINUS) biggify -= 0.1f;
+        if (key == GLFW_KEY_PERIOD) expand +=0.1f;
+        if (key == GLFW_KEY_COMMA) expand -= 0.1f;
+    }
+}
+
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+
+    if (yoffset > 0) {
+        s += 0.5;
+    }
+    if (yoffset < 0) {
+        s -= 0.5;
+    }
+
+}
+
+
+void windowResizeCallback(GLFWwindow* window, int width, int height) {
+    if (height == 0) return;
+    aspectRatio = (float)width / (float)height;
+    glViewport(0, 0, width, height);
+}
+
+GLuint readTexture(const char* filename) {
+    GLuint tex;
+    glActiveTexture(GL_TEXTURE0);
+    //Wczytanie do pamiêci komputera
+    std::vector<unsigned char> image; //Alokuj wektor do wczytania obrazka
+    unsigned width, height; //Zmienne do których wczytamy wymiary obrazka
+    //Wczytaj obrazek
+    unsigned error = lodepng::decode(image, width, height, filename);
+    //Import do pamiêci karty graficznej
+    glGenTextures(1, &tex); //Zainicjuj jeden uchwyt
+    glBindTexture(GL_TEXTURE_2D, tex); //Uaktywnij uchwyt
+    //Wczytaj obrazek do pamiêci KG skojarzonej z uchwytem
+    glTexImage2D(GL_TEXTURE_2D, 0, 4, width, height, 0,
+        GL_RGBA, GL_UNSIGNED_BYTE, (unsigned char*)image.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    return tex;
+}
+
+GLuint loadTextureForID(const std::string& ID) {
+    std::string filename = ID + ".png";
+    return readTexture(filename.c_str());
+}
+
+//Procedura inicjuj¹ca
+GLuint tex0;
+
+// Funkcja inicjalizuj¹ca OpenGL
+void initOpenGLProgram(GLFWwindow* window, const std::vector<Place>& places, const std::vector<Transition>& transitions) {
+    initShaders();
+    // Inicjalizacja OpenGL
+    glClearColor(0, 0, 0, 1);
+    glEnable(GL_DEPTH_TEST);
+    glfwSetWindowSizeCallback(window, windowResizeCallback);
+    glfwSetKeyCallback(window, keyCallback);
+
+    //spTextured = new ShaderProgram("v_simplest.glsl", NULL, "f_simplest.glsl");
+
+    // Wczytaj tekstury dla miejsc
+    for (const auto& place : places) {
+        placeTextures[place.ID] = loadTextureForID(place.ID);
+    }
+
+    // Wczytaj tekstury dla przejœæ
+    for (const auto& transition : transitions) {
+        transitionTextures[transition.ID] = loadTextureForID(transition.ID);
+    }
+
+    // Wczytaj teksturê i przypisz j¹ do tex0
+    tex0 = readTexture("1.png");
+}
+
+void texKostka(glm::mat4 P, glm::mat4 V) {
+
+
+    glm::mat4 M = glm::mat4(1.0f);
+    M = glm::translate(M, glm::vec3(0.0f, 0.0f, 0.0f)); // Wylicz macierz modelu dla piramidy
+
+    glUniformMatrix4fv(spTextured->u("P"), 1, false, glm::value_ptr(P)); // Za³aduj do programu cieniuj¹cego macierz rzutowania
+    glUniformMatrix4fv(spTextured->u("V"), 1, false, glm::value_ptr(V)); // Za³aduj do programu cieniuj¹cego macierz widoku
+    glUniformMatrix4fv(spTextured->u("M"), 1, false, glm::value_ptr(M)); // Za³aduj do programu cieniuj¹cego macierz modelu
+
+    glEnableVertexAttribArray(spTextured->a("vertex"));
+    glVertexAttribPointer(spTextured->a("vertex"), 4, GL_FLOAT, false, 0, myCubeVertices); // WspTexturedó³rzêdne wierzcho³ków bierz z tablicy myCubeVertices
+
+    glEnableVertexAttribArray(spTextured->a("texCoord"));
+    glVertexAttribPointer(spTextured->a("texCoord"), 2, GL_FLOAT, false, 0, myCubeTexCoords); // WspTexturedó³rzêdne teksturowania bierz z tablicy myCubeTexCoords
+
+    glUniform4f(spTextured->u("color"), 0, 1, 0, 1); // Ustaw kolor na zielony
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex0);
+    glUniform1i(spTextured->u("tex"), 0);
+
+    glDrawArrays(GL_TRIANGLES, 0, myCubeVertexCount);
+
+    glDisableVertexAttribArray(spTextured->a("vertex"));
+    glDisableVertexAttribArray(spTextured->a("color"));
+}
+
+
+//Zwolnienie zasobów zajêtych przez program
+void freeOpenGLProgram(GLFWwindow* window) {
+    //************Tutaj umieszczaj kod, który nale¿y wykonaæ po zakoñczeniu pêtli g³ównej************
+
+    delete spTextured;
+    freeShaders();
+    //************Tutaj umieszczaj kod, który nale¿y wykonaæ po zakoñczeniu pêtli g³ównej************
+    glDeleteTextures(1, &tex0);
+}
+
+
+void drawPyramid() {
+    glm::mat4 M = glm::mat4(1.0f);
+    M = glm::translate(M, glm::vec3(0.0f, 0.0f, 0.0f)); // Wylicz macierz modelu dla piramidy
+
+    glUniformMatrix4fv(spTextured->u("M"), 1, false, glm::value_ptr(M));
+
+    glEnableVertexAttribArray(spTextured->a("vertex"));  // W³¹cz przesy³anie danych do atrybutu vertex
+    glVertexAttribPointer(spTextured->a("vertex"), 4, GL_FLOAT, false, 0, pVertices); // Wska¿ tablicê z danymi dla atrybutu vertex
+
+    // U¿yj kolorów z pliku myPyramidColors
+    glEnableVertexAttribArray(spTextured->a("color"));
+    glVertexAttribPointer(spTextured->a("color"), 4, GL_FLOAT, false, 0, pColors);
+
+    glDrawArrays(GL_TRIANGLES, 0, pVertexCount); // Narysuj piramidê
+
+    glDisableVertexAttribArray(spTextured->a("vertex"));  // Wy³¹cz przesy³anie danych do atrybutu vertex
+    glDisableVertexAttribArray(spTextured->a("color"));
+}
+
+void drawPyramidOnEdge(const Edge& edge, const glm::vec2& startPos, const glm::vec2& endPos) {
+    glm::vec2 middlePoint = ((startPos + endPos) / 2.0f);
+    glm::vec2 direction = glm::normalize(endPos - startPos);
+    float angle = atan2(direction.y, direction.x);
+
+    glm::mat4 M = glm::mat4(1.0f);
+    M = glm::translate(M, glm::vec3(middlePoint, 0.0f)); // Przenieœ do œrodkowego punktu krawêdzi
+    M = glm::rotate(M, angle - PI / 2, glm::vec3(0, 0, 1)); // Obrót tak, aby czubek piramidy wskazywa³ cel
+    M = glm::scale(M, glm::vec3(0.5, 0.5, 1)*biggify);
+    glUniformMatrix4fv(spTextured->u("M"), 1, false, glm::value_ptr(M));
+
+    glEnableVertexAttribArray(spTextured->a("vertex"));  // W³¹cz przesy³anie danych do atrybutu vertex
+    glVertexAttribPointer(spTextured->a("vertex"), 4, GL_FLOAT, false, 0, pVertices); // Wska¿ tablicê z danymi dla atrybutu vertex
+
+    // Ustaw kolor na niebieski
+    glUniform4f(spTextured->u("color"), 0, 0, 1, 1);
+
+    glDrawArrays(GL_TRIANGLES, 0, pVertexCount); // Narysuj piramidê
+
+    glDisableVertexAttribArray(spTextured->a("vertex"));  // Wy³¹cz przesy³anie danych do atrybutu vertex
+}
+
+
+
+void drawPlaces(const std::vector<Place>& places) {
+    for (const auto& place : places) {
+        glm::mat4 M = glm::mat4(1.0f);
+        M = glm::translate(M, glm::vec3((place.x / 20.0f) * expand, (place.y / 20.0f) * expand, 0.0f));
+        M = glm::scale(M, glm::vec3(1, 1, 1) * biggify);
+        glUniformMatrix4fv(spTextured->u("M"), 1, false, glm::value_ptr(M));
+
+        glEnableVertexAttribArray(spTextured->a("vertex"));
+        glVertexAttribPointer(spTextured->a("vertex"), 4, GL_FLOAT, false, 0, cVertices);
+
+        if (placeTextures.find(place.ID) != placeTextures.end()) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, placeTextures[place.ID]);
+            glUniform1i(spTextured->u("tex"), 0);
+        }
+        else {
+            // Render without texture (only color)
+            glUniform1i(spTextured->u("tex"), 0);
+        }
+
+        glDrawArrays(GL_TRIANGLES, 0, cVertexCount);
+
+        glDisableVertexAttribArray(spTextured->a("vertex"));
+    }
+}
+
+void drawTransitions(const std::vector<Transition>& transitions) {
+    for (const auto& transition : transitions) {
+        glm::mat4 M = glm::mat4(1.0f);
+        M = glm::translate(M, glm::vec3((transition.x / 20.0f) * expand, (transition.y / 20.0f) * expand, 0.0f));
+        M = glm::scale(M, glm::vec3(1, 1, 1) * biggify);
+        glUniformMatrix4fv(spTextured->u("M"), 1, false, glm::value_ptr(M));
+
+        glEnableVertexAttribArray(spTextured->a("vertex"));
+        glVertexAttribPointer(spTextured->a("vertex"), 4, GL_FLOAT, false, 0, cVertices);
+
+        if (transitionTextures.find(transition.ID) != transitionTextures.end()) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, transitionTextures[transition.ID]);
+            glUniform1i(spTextured->u("tex"), 0);
+        }
+        else {
+            // Render without texture (only color)
+            glUniform1i(spTextured->u("tex"), 0);
+        }
+
+        glDrawArrays(GL_TRIANGLES, 0, cVertexCount);
+
+        glDisableVertexAttribArray(spTextured->a("vertex"));
+    }
+}
+
+
+void drawEdges(const std::vector<Edge>& edges, const std::vector<Place>& places, const std::vector<Transition>& transitions) {
+    for (const auto& edge : edges) {
+
+        float startX, startY, endX, endY;
+
+
+        for (const auto& place : places) {
+            if (place.ID == std::to_string(edge.source)) {
+                startX = (place.x / 20.0f)*expand;
+                startY = (place.y / 20.0f)*expand;
+                break;
+            }
+        }
+
+        for (const auto& transition : transitions) {
+            if (transition.ID == std::to_string(edge.source)) {
+                startX = (transition.x / 20.0f)*expand;
+                startY = (transition.y / 20.0f)*expand;
+                break;
+            }
+        }
+
+
+
+        for (const auto& place : places) {
+            if (place.ID == std::to_string(edge.target)) {
+                endX = (place.x / 20.0f) * expand;
+                endY = (place.y / 20.0f) * expand;
+                break;
+            }
+        }
+
+        for (const auto& transition : transitions) {
+            if (transition.ID == std::to_string(edge.target)) {
+                endX = (transition.x / 20.0f) * expand;
+                endY = (transition.y / 20.0f) * expand;
+                break;
+            }
+        }
+
+        glm::vec2 startPos = glm::vec2(startX, startY);
+        glm::vec2 endPos = glm::vec2(endX, endY);
+
+        drawPyramidOnEdge(edge, startPos, endPos);
+
+        // Obliczanie d³ugoœci i kierunku prostopad³oœcianu
+        float length = glm::distance(glm::vec2(startX, startY) / 2.0f, glm::vec2(endX, endY) / 2.0f);
+        glm::vec2 direction = glm::normalize(glm::vec2(endX - startX, endY - startY));
+
+        // Ustawienie skali prostopad³oœcianu (d³ugoœæ, szerokoœæ, wysokoœæ)
+        glm::vec3 scale = glm::vec3(length, 0.1f, 0.1f);
+
+        // Obliczanie œrodka prostopad³oœcianu
+        glm::vec3 center = glm::vec3((startX + endX) / 2.0f, (startY + endY) / 2.0f, 0.0f);
+
+        // Obliczanie k¹ta obrotu prostopad³oœcianu (na p³aszczyŸnie XY)
+        float angle = atan2(direction.y, direction.x);
+
+        // Rysowanie prostopad³oœcianu
+        glm::mat4 M = glm::mat4(1.0f);
+        M = glm::translate(M, center); // Wylicz macierz translacji
+        M = glm::rotate(M, angle, glm::vec3(0, 0, 1)); // Wylicz macierz rotacji
+        M = glm::scale(M, scale * biggify) ; // Wylicz macierz skalowania
+
+        glUniformMatrix4fv(spTextured->u("M"), 1, false, glm::value_ptr(M));
+
+        glEnableVertexAttribArray(spTextured->a("vertex"));  // W³¹cz przesy³anie danych do atrybutu vertex
+        glVertexAttribPointer(spTextured->a("vertex"), 4, GL_FLOAT, false, 0, cVertices); // Wska¿ tablicê z danymi dla atrybutu vertex
+
+        //glEnableVertexAttribArray(spTextured->a("color"));
+        //glVertexAttribPointer(spTextured->a("color"), 4, GL_FLOAT, false, 0, myCubeColors);
+
+        glUniform4f(spTextured->u("color"), 0, 0, 1, 1);
+
+        glDrawArrays(GL_TRIANGLES, 0, cVertexCount); // Narysuj obiekt
+
+        glDisableVertexAttribArray(spTextured->a("vertex"));  // Wy³¹cz przesy³anie danych do atrybutu vertex
+    }
+}
+
+
+void drawScene(GLFWwindow* window, float angle_x, float angle_y, const std::vector<Place>& places, const std::vector<Transition>& transitions, const std::vector<Edge>& edges) {
+    //************Tutaj umieszczaj kod rysuj¹cy obraz******************l
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glm::mat4 V = glm::lookAt(glm::vec3(camlr + 0.0f, 0.0f, camfr + (-5.0f)),
+        glm::vec3(camlr - 0.0f, 0.0f, camfr - 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+
+    glm::mat4 P = glm::perspective(50.0f * PI / 180.0f, aspectRatio, 0.01f, 1000.0f);
+
+
+    spTextured->use(); //Aktywacja programu cieniuj¹cego
+    //Przeslij parametry programu cieniuj¹cego do karty graficznej
+    glUniformMatrix4fv(spTextured->u("P"), 1, false, glm::value_ptr(P));
+    glUniformMatrix4fv(spTextured->u("V"), 1, false, glm::value_ptr(V));
+
+
+    drawPlaces(places);
+    drawTransitions(transitions);
+    drawEdges(edges, places, transitions);
+    texKostka(P,V);
+    //drawPyramid();
+    if (animate) {
+        //drawCube(0.0f, 0.0f);
+        for (const auto& edge : edges) {
+            moveCubeAlongEdge(edge);
+            decreaseMarking(places, edge.source);
+        }
+    }
+
+    glfwSwapBuffers(window); //Przerzuæ tylny bufor na przedni
+}
+
+int main(void) {
+
+    std::vector<Place> places;
+    std::vector<Transition> transitions;
+    std::vector<Edge> edges;
+
+
+
+    xml_document<> doc;
+    file<> xmlFile("test.pn");
+    doc.parse<0>(xmlFile.data());
+
+    xml_node<>* root = doc.first_node();
+
+    // place
+    xml_node<>* placeClassNode = root->first_node("nodeclasses")->first_node("nodeclass");
+    for (xml_node<>* placeNode = placeClassNode->first_node("node");
+        placeNode;
+        placeNode = placeNode->next_sibling("node")) {
+
+        float x = std::stof(placeNode->first_node("graphics")->first_node("graphic")->first_attribute("x")->value());
+        float y = std::stof(placeNode->first_node("graphics")->first_node("graphic")->first_attribute("y")->value());
+        std::string ID = placeNode->first_attribute("id")->value();
+        //places.push_back({ x, y, "Place", ID });
+
+        int id = std::stoi(ID);
+        if (id < 1 || id > 199 || usedIDs.find(id) != usedIDs.end()) {
+            id = generateUniqueID();
+            if (id == -1) {
+                // Nie mo¿na wygenerowaæ unikalnego ID
+                // Obs³u¿ tê sytuacjê wed³ug w³asnych potrzeb
+            }
+        }
+        addUniqueID(id);
+
+        ID = std::to_string(id);
+
+        xml_node<>* markingNode = nullptr;
+        for (xml_node<>* attributeNode = placeNode->first_node("attribute"); attributeNode; attributeNode = attributeNode->next_sibling("attribute")) {
+            if (std::string(attributeNode->first_attribute("name")->value()) == "Marking") {
+                markingNode = attributeNode;
+                break;
+            }
+        }
+
+
+        if (markingNode) {
+
+            std::string marking = markingNode->first_node()->value();
+            places.push_back({ x, y, marking, ID });
+        }
+    }
+
+    // transition
+    xml_node<>* transitionClassNode = placeClassNode->next_sibling("nodeclass");
+    for (xml_node<>* transitionNode = transitionClassNode->first_node("node");
+        transitionNode;
+        transitionNode = transitionNode->next_sibling("node")) {
+        float x = std::stof(transitionNode->first_node("graphics")->first_node("graphic")->first_attribute("x")->value());
+        float y = std::stof(transitionNode->first_node("graphics")->first_node("graphic")->first_attribute("y")->value());
+        std::string ID = transitionNode->first_attribute("id")->value();
+
+        int id = std::stoi(ID);
+        if (id < 1 || id > 199 || usedIDs.find(id) != usedIDs.end()) {
+            id = generateUniqueID();
+            if (id == -1) {
+                // Nie mo¿na wygenerowaæ unikalnego ID
+                // Obs³u¿ tê sytuacjê wed³ug w³asnych potrzeb
+            }
+        }
+        addUniqueID(id);
+        ID = std::to_string(id);
+        transitions.push_back({ x, y, "Transition", ID });
+    }
+
+    // krawêdŸ
+    xml_node<>* edgeClassNode = root->first_node("edgeclasses")->first_node("edgeclass");
+    for (xml_node<>* edgeNode = edgeClassNode->first_node("edge");
+        edgeNode;
+        edgeNode = edgeNode->next_sibling("edge")) {
+        float startX = std::stof(edgeNode->first_node("graphics")->first_node("graphic")->first_node("points")->first_node("point")->first_attribute("x")->value());
+        float startY = std::stof(edgeNode->first_node("graphics")->first_node("graphic")->first_node("points")->first_node("point")->first_attribute("y")->value());
+        float endX = std::stof(edgeNode->first_node("graphics")->first_node("graphic")->first_node("points")->last_node("point")->first_attribute("x")->value());
+        float endY = std::stof(edgeNode->first_node("graphics")->first_node("graphic")->first_node("points")->last_node("point")->first_attribute("y")->value());
+        int source = std::stof(edgeNode->first_attribute("source")->value());
+        int target = std::stof(edgeNode->first_attribute("target")->value());
+
+
+        xml_node<>* multiplicityNode = nullptr;
+        for (xml_node<>* attributeNode = edgeNode->first_node("attribute"); attributeNode; attributeNode = attributeNode->next_sibling("attribute")) {
+            if (std::string(attributeNode->first_attribute("name")->value()) == "Multiplicity") {
+                multiplicityNode = attributeNode;
+                break;
+            }
+        }
+
+
+        if (multiplicityNode) {
+
+            std::string multiplicity = multiplicityNode->first_node()->value();
+            //markedPlaces.push_back({ x, y, marking, ID });
+            edges.push_back({ startX, startY, endX, endY, source, target, multiplicity });
+        }
+
+
+
+    }
+
+
+    GLFWwindow* window; //WskaŸnik na obiekt reprezentuj¹cy okno
+
+    glfwSetErrorCallback(error_callback); //Zarejestruj procedurê obs³ugi b³êdów
+
+    if (!glfwInit()) { //Zainicjuj bibliotekê GLFW
+        fprintf(stderr, "Nie mo¿na zainicjowaæ GLFW.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    window = glfwCreateWindow(800, 600, "OpenGL", NULL, NULL);  //Utwórz okno 800x600 o tytule "OpenGL" i kontekst OpenGL.
+
+    if (!window) //Je¿eli okna nie uda³o siê utworzyæ, to zamknij program
+    {
+        fprintf(stderr, "Nie mo¿na utworzyæ okna.\n");
+        glfwTerminate();
+        exit(EXIT_FAILURE);
+    }
+
+    glfwMakeContextCurrent(window); //Od tego momentu kontekst okna staje siê aktywny i polecenia OpenGL bêd¹ dotyczyæ w³aœnie jego.
+    glfwSwapInterval(1); //Czekaj na 1 powrót plamki przed pokazaniem ukrytego bufora
+
+    if (glewInit() != GLEW_OK) { //Zainicjuj bibliotekê GLEW
+        fprintf(stderr, "Nie mo¿na zainicjowaæ GLEW.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    initOpenGLProgram(window, places, transitions); //Operacje inicjuj¹ce
+
+    //G³ówna pêtla
+    float angle_x = 0; //Aktualny k¹t obrotu obiektu
+    float angle_y = 0; //Aktualny k¹t obrotu obiektu
+    glfwSetTime(0); //Zeruj timer
+
+
+
+    while (!glfwWindowShouldClose(window)) //Tak d³ugo jak okno nie powinno zostaæ zamkniête
+    {
+        angle_x += speed_x * glfwGetTime(); //Zwiêksz/zmniejsz k¹t obrotu na podstawie prêdkoœci i czasu jaki up³yna³ od poprzedniej klatki
+        angle_y += speed_y * glfwGetTime(); //Zwiêksz/zmniejsz k¹t obrotu na podstawie prêdkoœci i czasu jaki up³yna³ od poprzedniej klatki
+        glfwSetTime(0); //Zeruj timer
+        drawScene(window, angle_x, angle_y, places, transitions, edges); //Wykonaj procedurê rysuj¹c¹
+        
+        
+        
+        glfwPollEvents(); //Wykonaj procedury callback w zale¿noœci od zdarzeñ jakie zasz³y.
+    }
+
+    freeOpenGLProgram(window);
+
+    glfwDestroyWindow(window); //Usuñ kontekst OpenGL i okno
+    glfwTerminate(); //Zwolnij zasoby zajête przez GLFW
+    exit(EXIT_SUCCESS);
+}
