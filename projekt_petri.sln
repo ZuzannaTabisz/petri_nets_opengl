@@ -6,9 +6,6 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "projekt_petri", "projekt_petri_win.vcxproj", "{7288C82C-3F3E-4501-8878-A310FCA284FE}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{264AC43F-A923-454D-97D7-BC10472A3493}"
-	ProjectSection(SolutionItems) = preProject
-		trial1.txt = trial1.txt
-	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

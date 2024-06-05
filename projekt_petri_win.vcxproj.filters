@@ -30,15 +30,6 @@
     <ClInclude Include="model.h">
       <Filter>Pliki naglówkowe</Filter>
     </ClInclude>
-    <ClInclude Include="sphere.h">
-      <Filter>Pliki naglówkowe</Filter>
-    </ClInclude>
-    <ClInclude Include="teapot.h">
-      <Filter>Pliki naglówkowe</Filter>
-    </ClInclude>
-    <ClInclude Include="torus.h">
-      <Filter>Pliki naglówkowe</Filter>
-    </ClInclude>
     <ClInclude Include="shaderprogram.h">
       <Filter>Pliki naglówkowe</Filter>
     </ClInclude>
@@ -69,18 +60,6 @@
       <Filter>Pliki zródlowe</Filter>
     </ClCompile>
     <ClCompile Include="shaderprogram.cpp">
-      <Filter>Pliki zródlowe</Filter>
-    </ClCompile>
-    <ClCompile Include="sphere.cpp">
-      <Filter>Pliki zródlowe</Filter>
-    </ClCompile>
-    <ClCompile Include="teapot.cpp">
-      <Filter>Pliki zródlowe</Filter>
-    </ClCompile>
-    <ClCompile Include="torus.cpp">
-      <Filter>Pliki zródlowe</Filter>
-    </ClCompile>
-    <ClCompile Include="glad.c">
       <Filter>Pliki zródlowe</Filter>
     </ClCompile>
   </ItemGroup>
@@ -115,19 +94,17 @@
     <None Include="v_textured.glsl">
       <Filter>Pliki zasobów</Filter>
     </None>
-    <None Include="main1.txt" />
     <None Include="f_simplest.glsl">
       <Filter>Pliki zasobów</Filter>
     </None>
     <None Include="v_simplest.glsl">
       <Filter>Pliki zasobów</Filter>
     </None>
-    <None Include="depth_fragment.glsl" />
-    <None Include="depth_vertex.glsl" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="textmaybe.txt" />
-    <Text Include="changeID.txt" />
-    <Text Include="movecubealongtheedge.txt" />
+    <None Include="depth_fragment.glsl">
+      <Filter>Pliki zasobów</Filter>
+    </None>
+    <None Include="depth_vertex.glsl">
+      <Filter>Pliki zasobów</Filter>
+    </None>
   </ItemGroup>
 </Project>

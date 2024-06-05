@@ -29,20 +29,13 @@
     <ClInclude Include="myPyramid.h" />
     <ClInclude Include="myRoom.h" />
     <ClInclude Include="shaderprogram.h" />
-    <ClInclude Include="sphere.h" />
-    <ClInclude Include="teapot.h" />
-    <ClInclude Include="torus.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cube.cpp" />
-    <ClCompile Include="glad.c" />
     <ClCompile Include="lodepng.cpp" />
     <ClCompile Include="main_file.cpp" />
     <ClCompile Include="model.cpp" />
     <ClCompile Include="shaderprogram.cpp" />
-    <ClCompile Include="sphere.cpp" />
-    <ClCompile Include="teapot.cpp" />
-    <ClCompile Include="torus.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="depth_fragment.glsl" />
@@ -53,18 +46,12 @@
     <None Include="f_lamberttextured.glsl" />
     <None Include="f_simplest.glsl" />
     <None Include="f_textured.glsl" />
-    <None Include="main1.txt" />
     <None Include="v_constant.glsl" />
     <None Include="v_colored.glsl" />
     <None Include="v_lambert.glsl" />
     <None Include="v_lamberttextured.glsl" />
     <None Include="v_simplest.glsl" />
     <None Include="v_textured.glsl" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="changeID.txt" />
-    <Text Include="movecubealongtheedge.txt" />
-    <Text Include="textmaybe.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

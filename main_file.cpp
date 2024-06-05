@@ -49,7 +49,6 @@ int texmode = 0;
 
 int file_num = 1;
 
-
 int current_place_index = 0;
 
 int switchplace = 0;
