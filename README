@@ -1,0 +1,64 @@
+OpenGL Petri Nets Project
+This project is an OpenGL-based visualizer for Petri Nets. It uses various OpenGL functionalities to draw and interact with Petri Nets, providing a graphical representation of places, transitions, and tokens.
+
+**Authors**
+
+Zuzanna Tabisz, Marcelina Ciepielewska
+
+**Controls**
+
+Camera Movement
+A: Move camera left.
+D: Move camera right.
+W: Move camera upwards.
+S: Move camera downwards.
+
+Zoom and Scale
+= (Equal): Increase the size of elements.
+- (Minus): Decrease the size of elements.
+, (Comma): Decrease overall expansion.
+. (Period): Increase overall expansion.
+
+
+Animation and Texture
+0: Stop animation.
+1: Start animation.
+2: Load texture file number 1.
+3: Load texture file number 2.
+I: Switch to ID texture mode.
+M: Switch to marking-based texture mode.
+
+
+Navigation
+
+Right Arrow: Navigate to the next place.
+Down Arrow: Stop switching places.
+
+Zoom with Scroll
+Mouse Scroll Up: Zoom in.
+Mouse Scroll Down: Zoom out.
+
+
+Code Overview
+Key Functions
+void drawCube(float x, float y): Draws a cube at the specified coordinates.
+void moveCameraTo(float x, float y): Moves the camera to the specified coordinates.
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods): Handles keyboard inputs for various controls.
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset): Handles mouse scroll inputs for zooming.
+void windowResizeCallback(GLFWwindow* window, int width, int height): Adjusts the viewport when the window is resized.
+GLuint readTexture(const char* filename): Loads a texture from a file.
+void initOpenGLProgram(GLFWwindow* window, const std::vector<Place>& places, const std::vector<Transition>& transitions): Initializes the OpenGL program with necessary shaders, textures, and callbacks.
+void drawRoom(glm::mat4 P, glm::mat4 V, float beg_x, float beg_y): Draws the room containing the Petri Net.
+void drawPlaces(const std::vector<Place>& places): Draws the places of the Petri Net.
+void drawTransitions(const std::vector<Transition>& transitions): Draws the transitions of the Petri Net.
+Shader Management
+The project uses custom shaders for rendering. The initialization and use of shaders are handled in the initOpenGLProgram function, and specific shader programs are used for rendering shadows and textures.
+
+Texture Management
+Textures for places, transitions, and other elements are loaded and managed using the readTexture and loadTextureForID functions.
+
+Shadow Mapping
+Shadow mapping is implemented to provide realistic lighting effects. The initialization and drawing of shadow maps are handled by initShadowMap and drawShadowMap.
+
+License
+This project is licensed under the MIT License. See the LICENSE file for details.
